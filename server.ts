@@ -1,54 +1,46 @@
 import express from "express";
 import { createServer as createViteServer } from "vite";
 import path from "path";
+import { GoogleGenAI } from "@google/genai";
 
 async function startServer() {
   const app = express();
   const PORT = 3000;
 
-  // Increase payload limit to handle large base64 image/audio strings
   app.use(express.json({ limit: "50mb" }));
   app.use(express.urlencoded({ limit: "50mb", extended: true }));
 
-  // API endpoint for NVIDIA backend
+  // API endpoint for backend handling
   app.post("/api/chat", async (req, res) => {
     const { messages } = req.body;
 
-    const NVIDIA_API_KEY =
-      process.env.NVIDIA_API_KEY ||
-      "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";
+    // You requested to hardcode this specific key.
+    const GEMINI_API_KEY = "AIzaSyAVMamIjAFkmpNosSmWLOK41QyIEDf9vrY";
 
-    const invoke_url = "https://integrate.api.nvidia.com/v1/chat/completions";
+    const ai = new GoogleGenAI({ apiKey: GEMINI_API_KEY });
 
     try {
-      const response = await fetch(invoke_url, {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${NVIDIA_API_KEY}`,
-          Accept: "application/json",
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          model: "google/gemma-4-31b-it",
-          messages,
-          max_tokens: 16384,
-          temperature: 1.00,
-          top_p: 0.95,
-          stream: false,
-        }),
+      const contents = messages.map((m: any) => ({
+        role: m.role === 'assistant' ? 'model' : 'user',
+        parts: [{ text: m.content }]
+      }));
+
+      const response = await ai.models.generateContent({
+        model: "gemini-2.5-flash",
+        contents: contents,
+        config: {
+          systemInstruction: "You are a professional medical assistant named MediBot. Format your responses using strict and robust Markdown. Always be brief, clear, and professional. REMEMBER: Never output raw random characters. Provide disclaimers that you are an AI assistant and not a real doctor.",
+          temperature: 0.7,
+        }
       });
 
-      if (!response.ok) {
-        const errText = await response.text();
-        console.error("NVIDIA API error:", errText);
-        return res.status(response.status).json({ error: errText });
-      }
-
-      const data = await response.json();
-      res.json(data);
-    } catch (err) {
+      res.json({
+        choices: [{ message: { content: response.text } }]
+      });
+    } catch (err: any) {
       console.error("Fetch Error:", err);
-      res.status(500).json({ error: "Failed to communicate with API" });
+      // Passing the exact error message so you can see if the key is rejected!
+      res.status(500).json({ error: err.message || "Failed to communicate with API" });
     }
   });
 
