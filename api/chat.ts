@@ -1,6 +1,8 @@
 // This file automatically acts as your backend server on Vercel.
 // Vercel routes any request to /api/chat to this Serverless Function.
 
+export const maxDuration = 60; // Max allowed duration on Vercel Hobby tier is 60 seconds
+
 export const config = {
   api: {
     bodyParser: {
@@ -34,7 +36,7 @@ export default async function handler(req: any, res: any) {
       body: JSON.stringify({
         model: "google/gemma-4-31b-it",
         messages,
-        max_tokens: 16384,
+        max_tokens: 1536, // Reduced from 16384 to prevent Vercel 504 timeouts!
         temperature: 1.00,
         top_p: 0.95,
         stream: false,
