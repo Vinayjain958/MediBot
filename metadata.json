@@ -1,0 +1,8 @@
+{
+  "name": "MediBot",
+  "description": "A medical assistant chatbot using NVIDIA's Gemma-4-31b-it model with dark/light mode and support for audio and image analysis.",
+  "requestFramePermissions": [
+    "microphone"
+  ],
+  "majorCapabilities": []
+}
