@@ -1,13 +1,12 @@
 // This file automatically acts as your backend server on Vercel.
 // Vercel routes any request to /api/chat to this Serverless Function.
-import { GoogleGenAI } from "@google/genai";
 
 export const maxDuration = 60; // Max allowed duration on Vercel Hobby tier is 60 seconds
 
 export const config = {
   api: {
     bodyParser: {
-      sizeLimit: '4mb', 
+      sizeLimit: '4mb', // Vercel's free tier has a 4.5MB payload limit
     },
   },
 };
@@ -19,32 +18,41 @@ export default async function handler(req: any, res: any) {
 
   const { messages } = req.body;
 
-  // You requested to hardcode this specific key.
-  const GEMINI_API_KEY = "AIzaSyAVMamIjAFkmpNosSmWLOK41QyIEDf9vrY";
+  // Use the environment variable if present in Vercel, otherwise fallback to your provided key
+  const NVIDIA_API_KEY =
+    process.env.NVIDIA_API_KEY ||
+    "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";
 
-  const ai = new GoogleGenAI({ apiKey: GEMINI_API_KEY });
+  const invoke_url = "https://integrate.api.nvidia.com/v1/chat/completions";
 
   try {
-    const contents = messages.map((m: any) => ({
-      role: m.role === 'assistant' ? 'model' : 'user',
-      parts: [{ text: m.content }]
-    }));
-
-    const response = await ai.models.generateContent({
-      model: "gemini-2.5-flash",
-      contents: contents,
-      config: {
-        systemInstruction: "You are a professional medical assistant named MediBot. Format your responses using strict and robust Markdown. Always be brief, clear, and professional. REMEMBER: Never output raw random characters. Provide disclaimers that you are an AI assistant and not a real doctor.",
-        temperature: 0.7,
-      }
+    const fetchResponse = await fetch(invoke_url, {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${NVIDIA_API_KEY}`,
+        "Accept": "application/json",
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        model: "google/gemma-4-31b-it",
+        messages,
+        max_tokens: 1536, // Reduced from 16384 to prevent Vercel 504 timeouts!
+        temperature: 1.00,
+        top_p: 0.95,
+        stream: false,
+      }),
     });
 
-    return res.status(200).json({
-      choices: [{ message: { content: response.text } }]
-    });
+    if (!fetchResponse.ok) {
+      const errText = await fetchResponse.text();
+      console.error("NVIDIA API error:", errText);
+      return res.status(fetchResponse.status).json({ error: errText });
+    }
 
+    const data = await fetchResponse.json();
+    return res.status(200).json(data);
   } catch (err: any) {
     console.error("Fetch Error:", err);
-    return res.status(500).json({ error: err.message || "Failed to communicate with API" });
+    return res.status(500).json({ error: "Failed to communicate with API" });
   }
 }
